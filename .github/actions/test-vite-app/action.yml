@@ -27,4 +27,4 @@ runs:
       shell: bash
       run: |
         cd ${{ inputs.app-directory }}
-        npm test
+        npm run test
