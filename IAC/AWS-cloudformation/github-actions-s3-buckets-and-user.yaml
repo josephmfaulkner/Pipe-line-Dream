@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'S3 Infrastructure: Report Bucket, Terraform State Bucket (Native Locking), and CI/CD IAM User'
+
+Parameters:
+  TestReportBucketName:
+    Type: String
+    Default: pipeline-dream-test-reports
+    Description: 'Name for the static reports bucket (e.g., my-project-reports)'
+  
+  TerraformStateBucketName:
+    Type: String
+    Default: pipeline-dream-terraform-state-bucket
+    Description: 'Name for the Terraform State bucket (e.g., my-project-tf-state)'
+
+Resources:
+  # -------------------------------------------------------------------------
+  # 1. Report Bucket (Public HTML Reports)
+  # -------------------------------------------------------------------------
+  TestReportBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref TestReportBucketName
+      WebsiteConfiguration:
+        IndexDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  PublicReportBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TestReportBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub 'arn:aws:s3:::${TestReportBucket}/*'
+
+  # -------------------------------------------------------------------------
+  # 2. Terraform State Bucket
+  #    - Used for State files AND native locking (Terraform 1.10+)
+  #    - Versioning is highly recommended for state recovery
+  # -------------------------------------------------------------------------
+  TerraformStateBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref TerraformStateBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # -------------------------------------------------------------------------
+  # 3. IAM User & Policies
+  # -------------------------------------------------------------------------
+  GitHubActionsUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestReportBucketName}-actions-user'
+
+  GitHubActionsUserPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: CICD_Infrastructure_Access
+      Users:
+        - !Ref GitHubActionsUser
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # --- A. Report Bucket Access ---
+          - Sid: ReportBucketAccess
+            Effect: Allow
+            Action:
+              - 's3:ListBucket'
+              - 's3:GetBucketLocation'
+              - 's3:PutObject'
+              - 's3:DeleteObject'
+            Resource: 
+              - !GetAtt TestReportBucket.Arn
+              - !Sub 'arn:aws:s3:::${TestReportBucket}/*'
+
+          # --- B. Terraform Backend Access ---
+          # Note: No DynamoDB permissions needed. 
+          # S3 Native locking only requires PutObject/GetObject on the state bucket.
+          - Sid: TerraformStateAccess
+            Effect: Allow
+            Action:
+              - 's3:ListBucket'
+              - 's3:GetObject'
+              - 's3:PutObject'
+              - 's3:DeleteObject' # Needed to clean up lock files if they get stuck
+            Resource:
+              - !GetAtt TerraformStateBucket.Arn
+              - !Sub 'arn:aws:s3:::${TerraformStateBucket}/*'
+
+          # --- C. Provisioning Permission (Creating PR Buckets) ---
+          - Sid: ProvisioningAccess
+            Effect: Allow
+            Action:
+              - 's3:CreateBucket'
+              - 's3:DeleteBucket'
+              - 's3:ListAllMyBuckets'
+              - 's3:PutBucketWebsite'
+              - 's3:PutBucketPolicy'
+              - 's3:PutBucketPublicAccessBlock'
+              - 's3:PutBucketTagging'
+              - 's3:GetBucket*'
+              - 's3:PutObject'
+              - 's3:DeleteObject'
+              - 's3:GetObject'
+            Resource: '*'
+
+  GitHubActionsAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref GitHubActionsUser
+
+Outputs:
+  TestReportBucketName:
+    Value: !Ref TestReportBucket
+  TerraformStateBucketName:
+    Value: !Ref TerraformStateBucket
+  AwsAccessKeyId:
+    Value: !Ref GitHubActionsAccessKey
+  AwsSecretAccessKey:
+    Value: !GetAtt GitHubActionsAccessKey.SecretAccessKey

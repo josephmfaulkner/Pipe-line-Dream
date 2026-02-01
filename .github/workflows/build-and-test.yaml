@@ -9,12 +9,40 @@ jobs:
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
+      
+      - name: Debug Vars
+        shell: bash
+        run: echo "${{ toJson(vars) }}"
 
+      - name: Get Semantic Version
+        id: get_semantic_version
+        uses: ./.github/actions/get-semantic-version
+        with:
+          directory: ./react-frontend
+          
       - name: Run Tests
         id: test_step
         uses: ./.github/actions/test-vite-app
         with:
           app-directory: 'react-frontend'
+        continue-on-error: true
+    
+      - name: Publish Test Results
+        id: publish_test_results_step
+        uses: ./.github/actions/publish-to-s3
+        with:
+          artifacts-path: ./react-frontend/_test-reports
+          s3-bucket: ${{ vars.TESTREPORTBUCKETNAME }}
+          s3-destination-path: /test-reports/${{ steps.get_semantic_version.outputs.formatted_version_string }}/${{ github.run_number }}
+          aws-region: ${{ vars.AWS_REGION }}
+          aws-access-key: ${{ secrets.AWSACCESSKEYID }}
+          aws-secret-key: ${{ secrets.AWSSECRETACCESSKEY }}
+            
+      
+      - name: Check Test Status
+        if: steps.test_step.outcome == 'failure'
+        run: exit 1
+
   build:
     runs-on: ubuntu-latest
     steps:
