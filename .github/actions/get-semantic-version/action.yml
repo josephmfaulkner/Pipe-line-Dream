@@ -40,7 +40,7 @@ runs:
       shell: bash
       run: |
         # Remove trailing slash and replace remaining slashes with dashes
-        CLEAN=$(echo "${{ inputs.directory }}" | sed 's/\/$//' | tr '/' '-')
+        CLEAN=$(echo "${{ inputs.directory }}" | sed 's/\.//g; s/^\///; s/\/$//' )
         echo "name=$CLEAN" >> $GITHUB_OUTPUT
 
     # 2. Sanitize the Branch Name (e.g., "feature/login" -> "feature-login")

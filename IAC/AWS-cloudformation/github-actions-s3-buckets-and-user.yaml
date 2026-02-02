@@ -7,6 +7,11 @@ Parameters:
     Default: pipeline-dream-test-reports
     Description: 'Name for the static reports bucket (e.g., my-project-reports)'
   
+  BuildArtifactsBucketName:
+    Type: String
+    Default: pipeline-dream-build-artifacts-bucket
+    Description: 'Name for the build artifacts (e.g., my-project-reports)'
+
   TerraformStateBucketName:
     Type: String
     Default: pipeline-dream-terraform-state-bucket
@@ -41,6 +46,21 @@ Resources:
             Action: 's3:GetObject'
             Resource: !Sub 'arn:aws:s3:::${TestReportBucket}/*'
 
+  BuildArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BuildArtifactsBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
   # -------------------------------------------------------------------------
   # 2. Terraform State Bucket
   #    - Used for State files AND native locking (Terraform 1.10+)
@@ -79,33 +99,7 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          # --- A. Report Bucket Access ---
-          - Sid: ReportBucketAccess
-            Effect: Allow
-            Action:
-              - 's3:ListBucket'
-              - 's3:GetBucketLocation'
-              - 's3:PutObject'
-              - 's3:DeleteObject'
-            Resource: 
-              - !GetAtt TestReportBucket.Arn
-              - !Sub 'arn:aws:s3:::${TestReportBucket}/*'
-
-          # --- B. Terraform Backend Access ---
-          # Note: No DynamoDB permissions needed. 
-          # S3 Native locking only requires PutObject/GetObject on the state bucket.
-          - Sid: TerraformStateAccess
-            Effect: Allow
-            Action:
-              - 's3:ListBucket'
-              - 's3:GetObject'
-              - 's3:PutObject'
-              - 's3:DeleteObject' # Needed to clean up lock files if they get stuck
-            Resource:
-              - !GetAtt TerraformStateBucket.Arn
-              - !Sub 'arn:aws:s3:::${TerraformStateBucket}/*'
-
-          # --- C. Provisioning Permission (Creating PR Buckets) ---
+          # S3 Permissions for Github Actions User
           - Sid: ProvisioningAccess
             Effect: Allow
             Action:
@@ -120,6 +114,8 @@ Resources:
               - 's3:PutObject'
               - 's3:DeleteObject'
               - 's3:GetObject'
+              - 's3:ListBucket'
+              - 's3:GetBucketLocation'
             Resource: '*'
 
   GitHubActionsAccessKey:
@@ -130,6 +126,8 @@ Resources:
 Outputs:
   TestReportBucketName:
     Value: !Ref TestReportBucket
+  BuildArtifactsBucketName:
+    Value: !Ref BuildArtifactsBucket
   TerraformStateBucketName:
     Value: !Ref TerraformStateBucket
   AwsAccessKeyId:
