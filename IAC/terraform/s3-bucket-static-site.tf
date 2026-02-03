@@ -3,7 +3,7 @@ resource "aws_s3_bucket" "static_site" {
   bucket = var.bucket_name
   
   # Change to true if you want to be able to destroy the bucket even if it has files
-  force_destroy = false
+  force_destroy = true
 }
 
 # 2. Enable Static Website Hosting

@@ -24,7 +24,7 @@ inputs:
 
   s3-destination-path:
     description: 'The S3 bucket path you want to upload to'
-    required: true
+    required: false
     default: ''
   
 runs:

@@ -33,7 +33,7 @@ inputs:
 outputs:
   terraform-outputs:
     description: 'A JSON map containing all outputs from the Terraform run'
-    value: ${{ steps.extract-outputs.outputs.tf_json }}
+    value: ${{ steps.terraform_apply.outputs.tf_json }}
 
 runs:
   using: "composite"
@@ -80,24 +80,14 @@ runs:
 
     # 5. Apply Terraform
     - name: Terraform Apply
+      id: terraform_apply
       shell: bash
       working-directory: ${{ inputs.terraform-files-directory }}
       env:
         AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key }}
         AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-secret-key }}
         AWS_REGION: ${{ inputs.aws-region }}
-      run: terraform apply -auto-approve
-
-    # 6. Extract Outputs
-    # Converts all Terraform outputs to a compressed JSON string and exposes it as an Action output.
-    - name: Extract Outputs
-      id: extract-outputs
-      shell: bash
-      working-directory: ${{ inputs.terraform-files-directory }}
-      env: 
-        AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key }}
-        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-secret-key }}
-        AWS_REGION: ${{ inputs.aws-region }}
-      run: |
+      run: | 
+        terraform apply -auto-approve
         OUTPUTS=$(terraform output -json | jq -c .)
         echo "tf_json=$OUTPUTS" >> $GITHUB_OUTPUT

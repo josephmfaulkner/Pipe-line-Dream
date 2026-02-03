@@ -38,9 +38,26 @@ jobs:
           terraform-files-directory: './IAC/terraform'
           terraform-workspace-name: ${{ inputs.workspace }}
           # Pass the variables as a strict JSON string
-          terraform-variable-values-map: '{"bucket_name": "${{ steps.get_bucket_name.outputs.name }}"}'
+          terraform-variable-values-map: '{"aws_region": "${{ vars.AWS_REGION }}", "bucket_name": "${{ steps.get_bucket_name.outputs.name }}"}'
+
+      - name: Log Terraform JSON
+        shell: bash
+        run: |
+          echo TERRAFORM OUTPUTS ${{steps.terraform_apply.outputs.terraform-outputs}}
+          echo TERRAFORM JSON ${{ fromJson(steps.terraform_apply.outputs.terraform-outputs) }}
+          echo BUCKET NAME ${{ fromJson(steps.terraform_apply.outputs.terraform-outputs).bucket_name.value }}
+
+      - name: Publish PR Site
+        id: publish_test_results_step
+        uses: ./.github/actions/publish-to-s3
+        with:
+          artifacts-path: s3://${{ vars.BUILDARTIFACTSBUCKETNAME }}/${{ inputs.release_version }}
+          s3-bucket: ${{ fromJson(steps.terraform_apply.outputs.terraform-outputs).bucket_name.value }}
+          aws-region: ${{ vars.AWS_REGION }}
+          aws-access-key: ${{ secrets.AWSACCESSKEYID }}
+          aws-secret-key: ${{ secrets.AWSSECRETACCESSKEY }}
 
       # Example of accessing the output map
       - name: Print Bucket Name
         run: |
-          echo "The bucket created was: ${{ fromJson(steps.terraform_apply.outputs.terraform-outputs).s3_bucket_name.value }}"
+          echo "The bucket created was: ${{ toJson(steps.terraform_apply.outputs.terraform-outputs).s3_bucket_name }}"
