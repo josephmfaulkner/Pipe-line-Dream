@@ -4,12 +4,11 @@ description: 'Installs dependencies and runs tests for a Vite project'
 inputs:  
 
   aws-access-key:
-      description: 'AWS Access Key ID'
-      required: true
+    description: 'AWS Access Key ID'
+    required: true
   aws-secret-key:
     description: 'AWS Secret Access Key'
     required: true
-
   aws-region: 
     description: 'AWS region which contains the S3 bucket'
     required: true

@@ -1,0 +1,46 @@
+name: Deploy Static Site
+
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Version of site to deploy (ex: react-frontend/main/0.0.1)'
+        required: true
+        type: string
+        
+      workspace:
+        description: '(ex: pr-<branch-name> , dev, qa, prod)'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get S3 Bucket Name
+        id: get_bucket_name
+        shell: bash
+        run : |
+            BUCKET_NAME=$(echo "${{ vars.APP_NAME }}-${{ inputs.workspace }}" | sed 's|[/\.]|-|g' )
+            echo "name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+
+      - name: Apply S3 Infrastructure
+        id: terraform_apply
+        uses: ./.github/actions/terraform-apply
+        with:
+          aws-access-key: ${{ secrets.AWSACCESSKEYID }}
+          aws-secret-key: ${{ secrets.AWSSECRETACCESSKEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+          terraform-state-bucket-name: ${{ vars.TERRAFORMSTATEBUCKETNAME }}
+          terraform-files-directory: './IAC/terraform'
+          terraform-workspace-name: ${{ inputs.workspace }}
+          # Pass the variables as a strict JSON string
+          terraform-variable-values-map: '{"bucket_name": "${{ steps.get_bucket_name.outputs.name }}"}'
+
+      # Example of accessing the output map
+      - name: Print Bucket Name
+        run: |
+          echo "The bucket created was: ${{ fromJson(steps.terraform_apply.outputs.terraform-outputs).s3_bucket_name.value }}"

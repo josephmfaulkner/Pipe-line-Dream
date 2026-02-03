@@ -1,0 +1,103 @@
+name: 'Terraform Apply S3'
+description: 'Initialize and apply Terraform with an S3 backend and workspace support.'
+
+inputs:
+  aws-access-key:
+    description: 'AWS Access Key ID'
+    required: true
+  aws-secret-key:
+    description: 'AWS Secret Access Key'
+    required: true
+  aws-region:
+    description: 'AWS Region for the provider and backend'
+    required: true
+  terraform-state-bucket-name:
+    description: 'Name of the existing S3 bucket to store Terraform state'
+    required: true
+  terraform-state-key:
+    description: 'Key used for Terraform state'
+    required: false
+    default: terraform.tfstate
+  terraform-files-directory:
+    description: 'Path to the directory containing .tf files'
+    required: false
+    default: '.'
+  terraform-workspace-name:
+    description: 'The Terraform workspace to use (e.g., dev, prod)'
+    required: true
+  terraform-variable-values-map:
+    description: 'A JSON string of variables to pass to Terraform (e.g., {"bucket_name": "my-site"})'
+    required: false
+    default: '{}'
+
+outputs:
+  terraform-outputs:
+    description: 'A JSON map containing all outputs from the Terraform run'
+    value: ${{ steps.extract-outputs.outputs.tf_json }}
+
+runs:
+  using: "composite"
+  steps:
+    # 1. Install Terraform
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_wrapper: false # specific setting to allow easier JSON parsing of outputs
+
+    # 2. Write variables to file
+    # We write the input JSON map directly to a .tfvars.json file so Terraform picks it up automatically.
+    - name: Create Variables File
+      shell: bash
+      working-directory: ${{ inputs.terraform-files-directory }}
+      run: |
+        echo '${{ inputs.terraform-variable-values-map }}' > run.auto.tfvars.json
+
+    # 3. Initialize with Partial Backend Configuration
+    # We dynamically inject the bucket and region. We rely on the workspace (Step 4) to segregate the state paths.
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ inputs.terraform-files-directory }}
+      env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-secret-key }}
+        AWS_REGION: ${{ inputs.aws-region }}
+      run: |
+        terraform init \
+          -backend-config="bucket=${{ inputs.terraform-state-bucket-name }}" \
+          -backend-config="region=${{ inputs.aws-region }}" \
+          -backend-config="key=terraform.tfstate"
+
+    # 4. Select or Create Workspace
+    - name: Select Workspace
+      shell: bash
+      working-directory: ${{ inputs.terraform-files-directory }}
+      env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-secret-key }}
+        AWS_REGION: ${{ inputs.aws-region }}
+      run: |
+        terraform workspace select ${{ inputs.terraform-workspace-name }} || terraform workspace new ${{ inputs.terraform-workspace-name }}
+
+    # 5. Apply Terraform
+    - name: Terraform Apply
+      shell: bash
+      working-directory: ${{ inputs.terraform-files-directory }}
+      env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-secret-key }}
+        AWS_REGION: ${{ inputs.aws-region }}
+      run: terraform apply -auto-approve
+
+    # 6. Extract Outputs
+    # Converts all Terraform outputs to a compressed JSON string and exposes it as an Action output.
+    - name: Extract Outputs
+      id: extract-outputs
+      shell: bash
+      working-directory: ${{ inputs.terraform-files-directory }}
+      env: 
+        AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-secret-key }}
+        AWS_REGION: ${{ inputs.aws-region }}
+      run: |
+        OUTPUTS=$(terraform output -json | jq -c .)
+        echo "tf_json=$OUTPUTS" >> $GITHUB_OUTPUT

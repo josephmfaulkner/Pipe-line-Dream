@@ -1,0 +1,73 @@
+name: 'Subdirectory Semantic Version'
+description: 'Calculates a semantic version for a subdirectory and formats a unique build string.'
+
+inputs:
+  directory:
+    description: 'The target subdirectory (e.g., packages/frontend)'
+    required: true
+  prerelease_mode:
+    description: 'If true, treat as prerelease (optional)'
+    required: false
+    default: 'false'
+
+outputs:
+  # The specific requested format
+  formatted_string:
+    description: 'Concatenated string: <clean-dir>-<clean-branch>-<version>'
+    value: ${{ steps.format.outputs.result }}
+  
+  # Individual components if needed later
+  version:
+    description: 'The raw semantic version (e.g., 1.2.3)'
+    value: ${{ steps.semver.outputs.version }}
+  clean_branch:
+    description: 'Sanitized branch name'
+    value: ${{ steps.branch.outputs.name }}
+
+runs:
+  using: "composite"
+  steps:
+    # 1. Sanitize the Directory Name (e.g., "packages/ui" -> "packages-ui")
+    - name: Clean Directory Name
+      id: dirname
+      shell: bash
+      run: |
+        # Remove trailing slash and replace remaining slashes with dashes
+        CLEAN=$(echo "${{ inputs.directory }}" | sed 's/\/$//' | tr '/' '-')
+        echo "name=$CLEAN" >> $GITHUB_OUTPUT
+
+    # 2. Sanitize the Branch Name (e.g., "feature/login" -> "feature-login")
+    - name: Clean Branch Name
+      id: branch
+      shell: bash
+      run: |
+        CLEAN=$(echo "${{ github.ref_name }}" | tr '/' '-')
+        echo "name=$CLEAN" >> $GITHUB_OUTPUT
+
+    # 3. Calculate Semantic Version
+    - name: Get Semantic Version
+      id: semver
+      uses: paulhatch/semantic-version@v5.4.0
+      with:
+        # Limit the git history analysis to this folder only
+        change_path: ${{ inputs.directory }}
+        
+        # Create a unique tag prefix so this folder doesn't conflict with others
+        # e.g., tags will look like: packages-ui-v1.0.2
+        tag_prefix: "${{ steps.dirname.outputs.name }}-v"
+        
+        # Standard configuration
+        bump_each_commit: true
+        search_commit_body: true
+        
+        # Use inputs if needed (e.g. for prerelease logic)
+        prerelease_mode: ${{ inputs.prerelease_mode }}
+
+    # 4. Construct the Final String
+    - name: Format Output
+      id: format
+      shell: bash
+      run: |
+        # Format: dir-branch-version (e.g., frontend-main-1.2.0)
+        RESULT="${{ steps.dirname.outputs.name }}-${{ steps.branch.outputs.name }}-${{ steps.semver.outputs.version }}"
+        echo "result=$RESULT" >> $GITHUB_OUTPUT

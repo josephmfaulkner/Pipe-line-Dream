@@ -1,0 +1,26 @@
+name: Destroy Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      workspace_name:
+        description: 'The Terraform Workspace to destroy (e.g., prod, dev)'
+        required: true
+        type: string
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Destroy Infrastructure
+        uses: ./.github/actions/terraform-destroy
+        with:
+          aws-access-key: ${{ secrets.AWSACCESSKEYID }}
+          aws-secret-key: ${{ secrets.AWSSECRETACCESSKEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+          terraform-files-directory: './IAC/terraform'
+          
+          terraform-state-bucket-name: ${{ vars.TERRAFORMSTATEBUCKETNAME }}
+          terraform-workspace-name: ${{ inputs.workspace_name }}

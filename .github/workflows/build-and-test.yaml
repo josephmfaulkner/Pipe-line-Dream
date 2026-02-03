@@ -38,7 +38,6 @@ jobs:
           aws-access-key: ${{ secrets.AWSACCESSKEYID }}
           aws-secret-key: ${{ secrets.AWSSECRETACCESSKEY }}
 
-      #https://pipeline-dream-test-reports.s3.us-west-1.amazonaws.com/test-reports/.-react-frontend/main/0.0.1/8/coverage/index.html
       - name: Log Test Results URLs
         id: log_test_results_url
         shell: bash
