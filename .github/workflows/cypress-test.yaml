@@ -22,7 +22,10 @@ jobs:
         working-directory: ./react-frontend
         id: set-matrix
         run: |
-          SPECS=$(find cypress/e2e -name "*.cy.ts" | jq -R -s -c 'split("\n")[:-1]')
+          # Finds files, then creates an object for each with:
+          # 1. path: full file path
+          # 2. name: file name without the last extension
+          SPECS=$(find cypress/e2e -name "*.cy.*s" | jq -R -s -c 'split("\n")[:-1] | map({path: ., name: (split("/") | last | split(".cy") | first)})') 
           echo "Found specs: $SPECS"
           echo "specs=$SPECS" >> "$GITHUB_OUTPUT"
 
@@ -35,7 +38,7 @@ jobs:
       matrix:
         spec: ${{ fromJson(needs.discover-specs.outputs.specs) }}
 
-    name: Cypress - ${{ matrix.spec }}
+    name: Cypress - ${{ matrix.spec.name }}
 
     steps:
       - name: Checkout code
@@ -45,7 +48,7 @@ jobs:
         uses: cypress-io/github-action@v6
         with:
           working-directory: ./react-frontend
-          spec: ${{ matrix.spec }}
+          spec: ${{ matrix.spec.path }}
           env: url=${{ inputs.url }}
 
   cypress-quality-gate:
