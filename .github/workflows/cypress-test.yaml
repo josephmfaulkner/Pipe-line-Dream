@@ -1,0 +1,57 @@
+name: 'Run E2E Cypress Tests'
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'The URL of the environment to test against'
+        required: true
+        type: string
+        
+jobs:
+
+  discover-specs:
+    runs-on: ubuntu-latest
+    outputs:
+      specs: ${{ steps.set-matrix.outputs.specs }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Find Cypress Specs
+        working-directory: ./react-frontend
+        id: set-matrix
+        run: |
+          SPECS=$(find cypress/e2e -name "*.cy.ts" | jq -R -s -c 'split("\n")[:-1]')
+          echo "Found specs: $SPECS"
+          echo "specs=$SPECS" >> "$GITHUB_OUTPUT"
+
+  cypress-run:
+    needs: [discover-specs]
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false # CRITICAL: Keeps other jobs running even if one fails
+      matrix:
+        spec: ${{ fromJson(needs.discover-specs.outputs.specs) }}
+
+    name: Cypress - ${{ matrix.spec }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Cypress Tests
+        uses: cypress-io/github-action@v6
+        with:
+          working-directory: ./react-frontend
+          spec: ${{ matrix.spec }}
+          env: url=${{ inputs.url }}
+
+  cypress-quality-gate:
+    needs: cypress-run
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+    - name: Check Matrix Status
+      run: echo "Quality Gate Passed - All Cypress specs succeeded."
