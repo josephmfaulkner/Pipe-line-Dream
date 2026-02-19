@@ -6,20 +6,6 @@ on:
       - main
 
 jobs:
-
-  get-semantic-version:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Get Semantic Version
-        id: get_semantic_version
-        uses: ./.github/actions/get-semantic-version
-        with:
-          directory: ./react-frontend
-    outputs:
-      version-string:    ${{ steps.get_semantic_version.outputs.formatted_version_string }}
-      version-workspace: ${{ steps.get_semantic_version.outputs.clean_branch }}
           
   build-and-test:
     name: Build and Test
@@ -28,14 +14,13 @@ jobs:
 
   deploy-pr-env:
     name: Deploy to PR Env
-    needs: [ get-semantic-version, build-and-test ]
+    needs: [ build-and-test ]
     uses: ./.github/workflows/deploy-pr-env.yaml
     with: 
-      release_version : ${{ needs.get-semantic-version.outputs.version-string }}
-      workspace : ${{ needs.get-semantic-version.outputs.version-workspace }}
+      release_version : ${{ needs.build-and-test.outputs.version-string }}
+      workspace : ${{ needs.build-and-test.outputs.version-workspace }}
     secrets: inherit
     
-
   cypress-test:
     name: Cypress E2E Tests
     needs: deploy-pr-env
