@@ -7,6 +7,14 @@ on:
         description: 'The Terraform Workspace to destroy (e.g., prod, dev)'
         required: true
         type: string
+  
+  workflow_call: 
+    inputs:
+      workspace_name:
+        description: 'The Terraform Workspace to destroy (e.g., prod, dev)'
+        required: true
+        type: string
+
 
 jobs:
   destroy:

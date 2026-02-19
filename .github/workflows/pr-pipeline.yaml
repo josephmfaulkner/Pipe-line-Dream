@@ -1,0 +1,45 @@
+name: PR Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  get-semantic-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get Semantic Version
+        id: get_semantic_version
+        uses: ./.github/actions/get-semantic-version
+        with:
+          directory: ./react-frontend
+    outputs:
+      version-string:    ${{ steps.get_semantic_version.outputs.formatted_version_string }}
+      version-workspace: ${{ steps.get_semantic_version.outputs.clean_branch }}
+          
+  build-and-test:
+    name: Build and Test
+    uses: ./.github/workflows/build-and-test.yaml
+    secrets: inherit 
+
+  deploy-pr-env:
+    name: Deploy to PR Env
+    needs: [ get-semantic-version, build-and-test ]
+    uses: ./.github/workflows/deploy-pr-env.yaml
+    with: 
+      release_version : ${{ needs.get-semantic-version.outputs.version-string }}
+      workspace : ${{ needs.get-semantic-version.outputs.version-workspace }}
+    secrets: inherit
+    
+
+  cypress-test:
+    name: Cypress E2E Tests
+    needs: deploy-pr-env
+    uses: ./.github/workflows/cypress-test.yaml
+    with:
+      asfd: ${{ needs.deploy-pr-env.outputs.pr-url }}
+    secrets: inherit

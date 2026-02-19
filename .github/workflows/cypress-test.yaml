@@ -7,6 +7,13 @@ on:
         description: 'The URL of the environment to test against'
         required: true
         type: string
+
+  workflow_call:
+    inputs:
+      url:
+        description: 'The URL of the environment to test against'
+        required: true
+        type: string
         
 jobs:
 

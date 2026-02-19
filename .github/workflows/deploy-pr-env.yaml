@@ -13,10 +13,30 @@ on:
         description: '(ex: pr-<branch-name> , dev, qa, prod)'
         required: true
         type: string
+  
+  workflow_call:
+    inputs:
+      release_version:
+        description: 'Version of site to deploy (ex: react-frontend/main/0.0.1)'
+        required: true
+        type: string
+        
+      workspace:
+        description: '(ex: pr-<branch-name> , dev, qa, prod)'
+        required: true
+        type: string
+
+    outputs:
+      pr-url:
+        description: "The deployed environment URL"
+        value: ${{ jobs.deploy.outputs.url }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    outputs: 
+      url: ${{ steps.bucket_url.outputs.name }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -48,7 +68,7 @@ jobs:
           echo BUCKET NAME ${{ fromJson(steps.terraform_apply.outputs.terraform-outputs).bucket_name.value }}
 
       - name: Publish PR Site
-        id: publish_test_results_step
+        id: publish_pr_site
         uses: ./.github/actions/publish-to-s3
         with:
           artifacts-path: s3://${{ vars.BUILDARTIFACTSBUCKETNAME }}/${{ inputs.release_version }}
@@ -61,3 +81,8 @@ jobs:
       - name: Print Bucket Name
         run: |
           echo "The bucket created was: ${{ toJson(steps.terraform_apply.outputs.terraform-outputs).s3_bucket_name }}"
+      
+      - name: Print Bucket URL
+        id: bucket_url
+        run: |
+          echo TEST_RESULTS_BUCKET_URL: https://${{ toJson(steps.terraform_apply.outputs.terraform-outputs).s3_bucket_name }}.s3.${{ vars.AWS_REGION }}.amazonaws.com
