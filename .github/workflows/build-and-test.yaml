@@ -3,9 +3,30 @@ name: Build and Test
 on:
   workflow_dispatch:
   workflow_call:
+    outputs:
+      version-string:    
+        description: "The Semantic version to use for the service in question"
+        value: ${{ jobs.get-semantic-version.outputs.version-string }}
+      version-workspace: 
+        description: "The workspace name to use for the PR environment"
+        value: ${{ jobs.get-semantic-version.outputs.version-workspace }}
   
 jobs:
+  get-semantic-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get Semantic Version
+        id: get_semantic_version
+        uses: ./.github/actions/get-semantic-version
+        with:
+          directory: ./react-frontend
+    outputs:
+      version-string:    ${{ steps.get_semantic_version.outputs.formatted_version_string }}
+      version-workspace: ${{ steps.get_semantic_version.outputs.clean_branch }}
+
   test:
+    needs: get-semantic-version
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source
@@ -15,12 +36,6 @@ jobs:
         shell: bash
         run: echo "${{ toJson(vars) }}"
 
-      - name: Get Semantic Version
-        id: get_semantic_version
-        uses: ./.github/actions/get-semantic-version
-        with:
-          directory: ./react-frontend
-          
       - name: Run Tests
         id: test_step
         uses: ./.github/actions/test-vite-app
@@ -34,7 +49,7 @@ jobs:
         with:
           artifacts-path: ./react-frontend/_test-reports
           s3-bucket: ${{ vars.TESTREPORTBUCKETNAME }}
-          s3-destination-path: /${{ steps.get_semantic_version.outputs.formatted_version_string }}/${{ github.run_number }}
+          s3-destination-path: /${{ needs.get-semantic-version.outputs.version-string }}/${{ github.run_number }}
           aws-region: ${{ vars.AWS_REGION }}
           aws-access-key: ${{ secrets.AWSACCESSKEYID }}
           aws-secret-key: ${{ secrets.AWSSECRETACCESSKEY }}
@@ -43,7 +58,7 @@ jobs:
         id: log_test_results_url
         shell: bash
         env: 
-          TEST_RESULTS_BUCKET_URL: https://${{ vars.TESTREPORTBUCKETNAME }}.s3.${{ vars.AWS_REGION }}.amazonaws.com/${{ steps.get_semantic_version.outputs.formatted_version_string }}/${{ github.run_number }}
+          TEST_RESULTS_BUCKET_URL: https://${{ vars.TESTREPORTBUCKETNAME }}.s3.${{ vars.AWS_REGION }}.amazonaws.com/${{ needs.get-semantic-version.outputs.version-string }}/${{ github.run_number }}
         run: |
           echo "Unit Tests:    ${{ env.TEST_RESULTS_BUCKET_URL }}/unit-tests/index.html"
           echo ""
@@ -54,17 +69,11 @@ jobs:
         run: exit 1
 
   build:
+    needs: get-semantic-version
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
-
-      - name: Get Semantic Version
-        id: get_semantic_version
-        uses: ./.github/actions/get-semantic-version
-        with:
-          directory: ./react-frontend      
-
       - name: Build Frontend
         id: build_step 
         uses: ./.github/actions/build-vite-app
@@ -81,7 +90,7 @@ jobs:
         with:
           artifacts-path: ./react-frontend/dist
           s3-bucket: ${{ vars.BUILDARTIFACTSBUCKETNAME }}
-          s3-destination-path: /${{ steps.get_semantic_version.outputs.formatted_version_string }}
+          s3-destination-path: /${{ needs.get-semantic-version.outputs.version-string }}
           aws-region: ${{ vars.AWS_REGION }}
           aws-access-key: ${{ secrets.AWSACCESSKEYID }}
           aws-secret-key: ${{ secrets.AWSSECRETACCESSKEY }}
