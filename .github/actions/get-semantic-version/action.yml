@@ -48,7 +48,8 @@ runs:
       id: branch
       shell: bash
       run: |
-        CLEAN=$(echo "${{ github.ref_name }}" | tr '/' '-')
+        BRANCH_NAME=${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}
+        CLEAN=$(echo $BRANCH_NAME | tr '/' '-')
         echo "name=$CLEAN" >> $GITHUB_OUTPUT
 
     # 3. Calculate Semantic Version

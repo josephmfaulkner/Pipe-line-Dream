@@ -41,5 +41,5 @@ jobs:
     needs: deploy-pr-env
     uses: ./.github/workflows/cypress-test.yaml
     with:
-      asfd: ${{ needs.deploy-pr-env.outputs.pr-url }}
+      url: ${{ needs.deploy-pr-env.outputs.pr-url }}
     secrets: inherit
