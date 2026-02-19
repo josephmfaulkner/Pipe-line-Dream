@@ -35,7 +35,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     outputs: 
-      url: ${{ steps.bucket_url.outputs.name }}
+      url: ${{ steps.bucket_url.outputs.website_url }}
 
     steps:
       - uses: actions/checkout@v4
@@ -61,11 +61,16 @@ jobs:
           terraform-variable-values-map: '{"aws_region": "${{ vars.AWS_REGION }}", "bucket_name": "${{ steps.get_bucket_name.outputs.name }}"}'
 
       - name: Log Terraform JSON
+        id: bucket_url
         shell: bash
         run: |
           echo TERRAFORM OUTPUTS ${{steps.terraform_apply.outputs.terraform-outputs}}
           echo TERRAFORM JSON ${{ fromJson(steps.terraform_apply.outputs.terraform-outputs) }}
           echo BUCKET NAME ${{ fromJson(steps.terraform_apply.outputs.terraform-outputs).bucket_name.value }}
+          echo WEBSITE URL ${{ fromJson(steps.terraform_apply.outputs.terraform-outputs).website_url.value }}
+
+          echo "bucket_name=${{ fromJson(steps.terraform_apply.outputs.terraform-outputs).bucket_name.value }}" >> $GITHUB_OUTPUT
+          echo "website_url=${{ fromJson(steps.terraform_apply.outputs.terraform-outputs).website_url.value }}" >> $GITHUB_OUTPUT
 
       - name: Publish PR Site
         id: publish_pr_site
@@ -76,13 +81,3 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
           aws-access-key: ${{ secrets.AWSACCESSKEYID }}
           aws-secret-key: ${{ secrets.AWSSECRETACCESSKEY }}
-
-      # Example of accessing the output map
-      - name: Print Bucket Name
-        run: |
-          echo "The bucket created was: ${{ toJson(steps.terraform_apply.outputs.terraform-outputs).s3_bucket_name }}"
-      
-      - name: Print Bucket URL
-        id: bucket_url
-        run: |
-          echo TEST_RESULTS_BUCKET_URL: https://${{ toJson(steps.terraform_apply.outputs.terraform-outputs).s3_bucket_name }}.s3.${{ vars.AWS_REGION }}.amazonaws.com
